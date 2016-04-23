@@ -51,7 +51,22 @@ def softmaxCostAndGradient(predicted, target, outputVectors, dataset):
     # assignment!                                                  
     
     ### YOUR CODE HERE
-    raise NotImplementedError
+    # print outputVectors.shape
+    # print predicted.shape
+
+    N,D = outputVectors.shape
+
+    score = softmax(np.sum(outputVectors * predicted,axis = 1))
+    cost = -np.log(score[target])
+    
+    gradPred = np.sum(outputVectors * score.reshape((N,1)),axis = 0) - outputVectors[target]
+
+    new_score = score.copy()
+    new_score[target] -= 1
+
+    grad = np.dot(new_score.reshape((N,1)),predicted.reshape((1,D)))
+
+    assert grad.shape == outputVectors.shape
     ### END YOUR CODE
     
     return cost, gradPred, grad
@@ -73,8 +88,47 @@ def negSamplingCostAndGradient(predicted, target, outputVectors, dataset,
     # free to reference the code you previously wrote for this        
     # assignment!
     
-    ### YOUR CODE HERE
-    raise NotImplementedError
+    # Inputs:                                                         
+    # - predicted: numpy ndarray, predicted word vector (\hat{r} in 
+    #   the written component)                                
+    # - target: integer, the index of the target word               
+    # - outputVectors: "output" vectors (as rows) for all tokens     
+    # - dataset: needed for negative sampling, unused here.         
+    
+    # Outputs:                                                        
+    # - cost: cross entropy cost for the softmax word prediction    
+    # - gradPred: the gradient with respect to the predicted word   
+    #        vector                                                
+    # - grad: the gradient with respect to all the other word        
+    #        vectors   
+
+    ### YOUR CODE HERE (see https://github.com/dennybritz/cs224d-solutions/blob/master/assignment-1/assignment1/wordvec_sentiment.ipynb)
+    N, D = outputVectors.shape
+    
+    # get the K random indices (rows into outputVectors)
+    k_indices = []
+    for i in xrange(K):
+        rand_index = dataset.sampleTokenIdx()
+        k_indices.append(rand_index)
+    
+    w_out = outputVectors[k_indices, 0:D] # size K x D
+    w_out_dot_r = sigmoid(np.dot(w_out, -1.0 * predicted.reshape((D, 1)))) # size K x 1
+    
+    s = np.sum(np.log(w_out_dot_r))
+    sigm_target = sigmoid(np.dot(predicted, outputVectors[target]))
+    cost = -1.0 * np.log(sigm_target) - s
+        
+    x1 = 1.0 - w_out_dot_r # shape is (K, 1)
+    x2 = np.dot(x1.reshape((1, K)), w_out).reshape((1, D))
+    
+    gradPred = (sigm_target - 1.0) * outputVectors[target].reshape((1, D)) + x2
+    gradPred = gradPred.reshape(predicted.shape)
+    
+    grad = np.zeros(outputVectors.shape)  # shape (N, D), each row is (D,)
+    grad[target, :] = predicted * (sigm_target - 1.0)
+
+    for k in k_indices:
+        grad[k, :] += -1.0 * predicted * (sigmoid(np.dot(-1.0 * predicted, outputVectors[k])) - 1.0)
     ### END YOUR CODE
     
     return cost, gradPred, grad
@@ -107,7 +161,21 @@ def skipgram(currentWord, C, contextWords, tokens, inputVectors, outputVectors,
     # assignment!
 
     ### YOUR CODE HERE
-    raise NotImplementedError
+    N, D = inputVectors.shape
+    
+    curr_index = tokens[currentWord]   # word to index
+    curr_vector = inputVectors[curr_index]  # index to input vector 
+    
+    cost = 0.0
+    gradIn = np.zeros(inputVectors.shape)
+    gradOut = np.zeros(outputVectors.shape)
+
+    for context_word in contextWords:
+        context_index = tokens[context_word]
+        cost_curr, grad_in_curr, grad_out_curr = word2vecCostAndGradient(curr_vector, context_index, outputVectors,dataset)
+        cost += cost_curr
+        gradIn[curr_index, :] += grad_in_curr
+        gradOut += grad_out_curr
     ### END YOUR CODE
     
     return cost, gradIn, gradOut
@@ -131,8 +199,21 @@ def cbow(currentWord, C, contextWords, tokens, inputVectors, outputVectors,
     gradIn = np.zeros(inputVectors.shape)
     gradOut = np.zeros(outputVectors.shape)
 
+
     ### YOUR CODE HERE
-    raise NotImplementedError
+    N, D = inputVectors.shape
+    
+    curr_index = tokens[currentWord]   # curr_index is the "out"
+    
+    context_index = [tokens[context_word] for context_word in contextWords] #context is the "in"
+    context_vectors = inputVectors[context_index]
+    context_vectors_sum = np.sum(context_vectors, axis = 0) # \hat{r}
+
+    cost, grad_in_curr, grad_out_curr = word2vecCostAndGradient(context_vectors_sum, curr_index, outputVectors,dataset) # use context word to predict the center word
+    for c in context_index:
+        gradIn[c,:] += grad_in_curr
+    # gradIn[context_index, :] += grad_in_curr # this does not work for the reason that context_index may contain duplicated index
+    gradOut += grad_out_curr
     ### END YOUR CODE
     
     return cost, gradIn, gradOut

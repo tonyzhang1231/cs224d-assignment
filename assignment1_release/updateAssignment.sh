@@ -1,4 +1,4 @@
-ASSIGNMENT=assignment3
+ASSIGNMENT=assignment1
 wget http://cs224d.stanford.edu/${ASSIGNMENT}/${ASSIGNMENT}.zip
 rm -f ${ASSIGNMENT}.pdf
 wget http://cs224d.stanford.edu/${ASSIGNMENT}/${ASSIGNMENT}.pdf
